@@ -1,3 +1,14 @@
+---
+title: FunClip
+emoji: 🥒
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: 4.31.3
+app_file: app.py
+pinned: false
+---
+
 [![SVG Banners](https://svg-banners.vercel.app/api?type=rainbow&text1=FunClip%20%20🥒&width=800&height=210)](https://github.com/Akshay090/svg-banners)
 
 ### <p align="center">「[简体中文](./README_zh.md) | English」</p>
