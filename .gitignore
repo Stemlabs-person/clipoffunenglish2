@@ -1,0 +1,14 @@
+*.pyc
+**/.DS_Store
+ClipVideo/clipvideo/output
+**/__pycache__/
+*.spec
+
+# local Python virtualenv created for testing, not part of the project
+venv_funclip/
+
+# Claude Code session-local state, not part of the project
+.claude/
+
+# a separate, already-published project (its own git repo) nested inside this folder
+/funclip 2.0/
