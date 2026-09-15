@@ -10,6 +10,30 @@ import argparse
 import tempfile
 from datetime import datetime
 import gradio as gr
+
+# Work around a real bug in gradio_client==0.16.3 (the version gradio==4.31.3
+# pulls in): its schema-to-type conversion assumes every JSON-schema node is
+# a dict, but a valid schema can have `"additionalProperties": true/false` -
+# a bare bool, not a dict - which crashes get_type() with `TypeError:
+# argument of type 'bool' is not iterable`. This breaks Gradio's
+# auto-generated "Use via API" /info page (visible as a small "Error: No API
+# found" toast on load) on any app with a Dict-typed input/output, though it
+# does NOT affect the actual UI or clipping/LLM functionality. Patched here
+# instead of editing the installed package so the fix travels with the repo
+# instead of being lost on any fresh `pip install`.
+import gradio_client.utils as _gradio_client_utils
+
+_original_json_schema_to_python_type = _gradio_client_utils._json_schema_to_python_type
+
+
+def _patched_json_schema_to_python_type(schema, defs=None):
+    if isinstance(schema, bool):
+        return "Any"
+    return _original_json_schema_to_python_type(schema, defs)
+
+
+_gradio_client_utils._json_schema_to_python_type = _patched_json_schema_to_python_type
+
 from funasr import AutoModel
 from videoclipper import VideoClipper
 from llm.openai_api import openai_call
@@ -18,6 +42,7 @@ from llm.g4f_openai_api import g4f_openai_call, free_llm7_call
 from llm.litellm_api import litellm_call
 from llm.twelvelabs_api import call_twelvelabs_pegasus
 from utils.trans_utils import extract_timestamps
+from utils.highlight_utils import detect_audio_highlights
 from introduction import top_md_1, top_md_3, top_md_4
 from launch_config import build_launch_kwargs
 
@@ -89,6 +114,11 @@ if __name__ == "__main__":
 
     def video_recog(video_input, sd_switch, hotwords, output_dir):
         return audio_clipper.video_recog(video_input, sd_switch, hotwords, output_dir=output_dir)
+
+    def highlight_detect(video_input):
+        if video_input is None:
+            return "Please upload a video first."
+        return detect_audio_highlights(video_input)
 
     def video_clip(dest_text, video_spk_input, start_ost, end_ost, state, output_dir):
         return audio_clipper.video_clip(
@@ -293,6 +323,8 @@ if __name__ == "__main__":
                                 apikey_input = gr.Textbox(label="APIKEY")
                             llm_button =  gr.Button("LLM Inference (run recognition first; free-llm7 and g4f models need no API key)", variant="primary")
                         llm_result = gr.Textbox(label="LLM Clipper Result")
+                        highlight_button = gr.Button(
+                            "🔊 Detect Highlights (audio spikes - for footage with little/no speech, e.g. sports)")
                         with gr.Row():
                             llm_clip_button = gr.Button("🧠 AI Clip", variant="primary")
                             llm_clip_subti_button = gr.Button("🧠 AI Clip+Subtitles")
@@ -351,6 +383,9 @@ if __name__ == "__main__":
                            outputs=[video_output, clip_message, srt_clipped])
         llm_button.click(llm_inference,
                          inputs=[prompt_head, prompt_head2, video_srt_output, llm_model, apikey_input, video_input],
+                         outputs=[llm_result])
+        highlight_button.click(highlight_detect,
+                         inputs=[video_input],
                          outputs=[llm_result])
         llm_clip_button.click(AI_clip, 
                            inputs=[llm_result,
