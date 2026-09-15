@@ -12,3 +12,7 @@ venv_funclip/
 
 # a separate, already-published project (its own git repo) nested inside this folder
 /funclip 2.0/
+
+# personal local-hosting scripts (hardcoded to this machine's paths, plus a
+# generated file with the current tunnel URL) - not part of the project
+local_hosting/

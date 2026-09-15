@@ -14,7 +14,7 @@ from funasr import AutoModel
 from videoclipper import VideoClipper
 from llm.openai_api import openai_call
 from llm.qwen_api import call_qwen_model
-from llm.g4f_openai_api import g4f_openai_call
+from llm.g4f_openai_api import g4f_openai_call, free_llm7_call
 from llm.litellm_api import litellm_call
 from llm.twelvelabs_api import call_twelvelabs_pegasus
 from utils.trans_utils import extract_timestamps
@@ -163,7 +163,11 @@ if __name__ == "__main__":
             )
         
     def llm_inference(system_content, user_content, srt_text, model, apikey, video_input=None):
-        SUPPORT_LLM_PREFIX = ['litellm', 'qwen', 'gpt', 'g4f', 'moonshot', 'deepseek', 'atlascloud', 'minimax', 'pegasus']
+        SUPPORT_LLM_PREFIX = ['litellm', 'qwen', 'gpt', 'g4f', 'free-llm7', 'moonshot', 'deepseek', 'atlascloud', 'minimax', 'pegasus']
+        if model.startswith('free-llm7'):
+            # Genuinely free and keyless (unlike the g4f option below, whose
+            # underlying providers now mostly require a paid/signup workaround).
+            return free_llm7_call(user_content+'\n'+srt_text, system_content)
         if model.startswith('litellm/'):
             return litellm_call(apikey, model, user_content+'\n'+srt_text, system_content)
         if model.startswith('pegasus'):
@@ -269,6 +273,7 @@ if __name__ == "__main__":
                             with gr.Row():
                                 llm_model = gr.Dropdown(
                                     choices=[
+                                        "free-llm7",
                                         "deepseek-chat",
                                         "qwen-plus",
                                              "gpt-3.5-turbo",
@@ -282,11 +287,11 @@ if __name__ == "__main__":
                                              "minimax/MiniMax-M2.7",
                                              "minimax/MiniMax-M2.7-highspeed",
                                              "pegasus1.5"],
-                                    value="deepseek-chat",
+                                    value="free-llm7",
                                     label="LLM Model Name",
                                     allow_custom_value=True)
                                 apikey_input = gr.Textbox(label="APIKEY")
-                            llm_button =  gr.Button("LLM Inference (run recognition first; non-g4f models need an API key)", variant="primary")
+                            llm_button =  gr.Button("LLM Inference (run recognition first; free-llm7 and g4f models need no API key)", variant="primary")
                         llm_result = gr.Textbox(label="LLM Clipper Result")
                         with gr.Row():
                             llm_clip_button = gr.Button("🧠 AI Clip", variant="primary")
