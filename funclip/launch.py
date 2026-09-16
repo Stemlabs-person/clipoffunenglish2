@@ -42,7 +42,7 @@ from llm.g4f_openai_api import g4f_openai_call, free_llm7_call
 from llm.litellm_api import litellm_call
 from llm.twelvelabs_api import call_twelvelabs_pegasus
 from utils.trans_utils import extract_timestamps
-from utils.highlight_utils import detect_audio_highlights
+from utils.highlight_utils import detect_audio_highlights, detect_learning_moments
 from introduction import top_md_1, top_md_3, top_md_4
 from launch_config import build_launch_kwargs
 
@@ -115,15 +115,22 @@ if __name__ == "__main__":
     def video_recog(video_input, sd_switch, hotwords, output_dir):
         return audio_clipper.video_recog(video_input, sd_switch, hotwords, output_dir=output_dir)
 
-    def highlight_detect(video_input):
+    def highlight_detect(video_input, top_n):
         if video_input is None:
             return "Please upload a video first.", None
-        result_text = detect_audio_highlights(video_input)
+        result_text = detect_audio_highlights(video_input, top_n=int(top_n))
         # AI Clip needs a video_state to know what/how to cut, which
         # normally only gets set by running ASR first (video_recog). Build
         # one directly here so Detect Highlights -> AI Clip works without
         # that step - there's no transcript to speak of for this kind of
         # content anyway.
+        state = audio_clipper.load_video_state(video_input)
+        return result_text, state
+
+    def learning_moments_detect(video_input, top_n):
+        if video_input is None:
+            return "Please upload a video first.", None
+        result_text = detect_learning_moments(video_input, top_n=int(top_n))
         state = audio_clipper.load_video_state(video_input)
         return result_text, state
 
@@ -330,8 +337,12 @@ if __name__ == "__main__":
                                 apikey_input = gr.Textbox(label="APIKEY")
                             llm_button =  gr.Button("LLM Inference (run recognition first; free-llm7 and g4f models need no API key)", variant="primary")
                         llm_result = gr.Textbox(label="LLM Clipper Result")
+                        highlight_count = gr.Slider(minimum=1, maximum=20, value=6, step=1,
+                            label="🔢 Number of Clips to Detect (applies to both buttons below)")
                         highlight_button = gr.Button(
                             "🔊 Detect Highlights (audio spikes - for footage with little/no speech, e.g. sports)")
+                        learning_button = gr.Button(
+                            "📉 Detect Learning Moments (rallies that end quietly, no crowd reaction - possible mistakes to review)")
                         with gr.Row():
                             llm_clip_button = gr.Button("🧠 AI Clip", variant="primary")
                             llm_clip_subti_button = gr.Button("🧠 AI Clip+Subtitles")
@@ -392,7 +403,10 @@ if __name__ == "__main__":
                          inputs=[prompt_head, prompt_head2, video_srt_output, llm_model, apikey_input, video_input],
                          outputs=[llm_result])
         highlight_button.click(highlight_detect,
-                         inputs=[video_input],
+                         inputs=[video_input, highlight_count],
+                         outputs=[llm_result, video_state])
+        learning_button.click(learning_moments_detect,
+                         inputs=[video_input, highlight_count],
                          outputs=[llm_result, video_state])
         llm_clip_button.click(AI_clip, 
                            inputs=[llm_result,
