@@ -234,6 +234,35 @@ class VideoClipper():
             res_audio = data
         return (sr, res_audio), message, clip_srt
 
+    def load_video_state(self, video_filename, output_dir=None):
+        """Build the state video_clip()/clip() need, without running ASR.
+
+        Used for clip-selection paths that don't come from a transcript
+        (e.g. audio-spike highlight detection on footage with no speech
+        worth transcribing) - mirrors the bookkeeping video_recog() does,
+        just without the recognition step, so 'recog_res_raw'/'timestamp'/
+        'sentences' are empty (safe: they're either unused when an explicit
+        timestamp_list is passed, or - for 'sentences' - just produce no
+        subtitle text instead of crashing).
+        """
+        video = mpy.VideoFileClip(video_filename)
+        if output_dir is not None:
+            os.makedirs(output_dir, exist_ok=True)
+            _, base_name = os.path.split(video_filename)
+            base_name, _ = os.path.splitext(base_name)
+            clip_video_file = base_name + '_clip.mp4'
+        else:
+            base_name, _ = os.path.splitext(video_filename)
+            clip_video_file = base_name + '_clip.mp4'
+        return {
+            'video_filename': video_filename,
+            'clip_video_file': clip_video_file,
+            'video': video,
+            'recog_res_raw': '',
+            'timestamp': [],
+            'sentences': [],
+        }
+
     def video_recog(self, video_filename, sd_switch='no', hotwords="", output_dir=None):
         video = mpy.VideoFileClip(video_filename)
         # Extract the base name, add '_clip.mp4', and 'wav'
@@ -347,17 +376,20 @@ class VideoClipper():
             for _ts in ts[1:]:
                 start, end = _ts[0] / 16000, _ts[1] / 16000
                 srt_clip, subs, srt_index = generate_srt_clip(sentences, start, end, begin_index=srt_index-1, time_acc_ost=time_acc_ost)
-                if not len(subs):
-                    continue
-                chi_subs = []
-                sub_starts = subs[0][0][0]
-                for sub in subs:
-                    chi_subs.append(((sub[0][0]-sub_starts, sub[0][1]-sub_starts), sub[1]))
+                # NOTE: a segment with no matching subtitles (e.g. no ASR was
+                # run at all, as with audio-spike highlight detection) used
+                # to `continue` here, silently dropping the clip itself -
+                # not just its subtitles - from the output. Subtitles are
+                # optional; the clip is not.
                 start, end = start+start_ost/1000.0, end+end_ost/1000.0
                 _video_clip = video.subclip(start, end)
                 start_end_info += ", from {} to {}".format(str(start)[:5], str(end)[:5])
                 clip_srt += srt_clip
-                if add_sub:
+                if add_sub and len(subs):
+                    chi_subs = []
+                    sub_starts = subs[0][0][0]
+                    for sub in subs:
+                        chi_subs.append(((sub[0][0]-sub_starts, sub[0][1]-sub_starts), sub[1]))
                     generator = lambda txt: TextClip(txt, font='./font/STHeitiMedium.ttc', fontsize=font_size, color=font_color)
                     subtitles = SubtitlesClip(chi_subs, generator)
                     _video_clip = CompositeVideoClip([_video_clip, subtitles.set_pos(('center','bottom'))])

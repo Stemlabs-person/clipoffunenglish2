@@ -117,8 +117,15 @@ if __name__ == "__main__":
 
     def highlight_detect(video_input):
         if video_input is None:
-            return "Please upload a video first."
-        return detect_audio_highlights(video_input)
+            return "Please upload a video first.", None
+        result_text = detect_audio_highlights(video_input)
+        # AI Clip needs a video_state to know what/how to cut, which
+        # normally only gets set by running ASR first (video_recog). Build
+        # one directly here so Detect Highlights -> AI Clip works without
+        # that step - there's no transcript to speak of for this kind of
+        # content anyway.
+        state = audio_clipper.load_video_state(video_input)
+        return result_text, state
 
     def video_clip(dest_text, video_spk_input, start_ost, end_ost, state, output_dir):
         return audio_clipper.video_clip(
@@ -386,7 +393,7 @@ if __name__ == "__main__":
                          outputs=[llm_result])
         highlight_button.click(highlight_detect,
                          inputs=[video_input],
-                         outputs=[llm_result])
+                         outputs=[llm_result, video_state])
         llm_clip_button.click(AI_clip, 
                            inputs=[llm_result,
                                    video_text_input, 
