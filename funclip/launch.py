@@ -43,6 +43,7 @@ from llm.litellm_api import litellm_call
 from llm.twelvelabs_api import call_twelvelabs_pegasus
 from utils.trans_utils import extract_timestamps
 from utils.highlight_utils import detect_audio_highlights, detect_learning_moments
+from utils.jersey_utils import filter_segments_by_jersey_number
 from introduction import top_md_1, top_md_3, top_md_4
 from launch_config import build_launch_kwargs
 
@@ -133,6 +134,16 @@ if __name__ == "__main__":
         result_text = detect_learning_moments(video_input, top_n=int(top_n))
         state = audio_clipper.load_video_state(video_input)
         return result_text, state
+
+    def jersey_filter(video_input, current_result, jersey_number):
+        if video_input is None:
+            return "Please upload a video first."
+        if not jersey_number.strip():
+            return current_result
+        if not current_result.strip():
+            return ("Run Detect Highlights or Detect Learning Moments first, "
+                    "then filter its results by jersey number.")
+        return filter_segments_by_jersey_number(video_input, current_result, jersey_number)
 
     def video_clip(dest_text, video_spk_input, start_ost, end_ost, state, output_dir):
         return audio_clipper.video_clip(
@@ -344,6 +355,10 @@ if __name__ == "__main__":
                         learning_button = gr.Button(
                             "📉 Detect Learning Moments (rallies that end quietly, no crowd reaction - possible mistakes to review)")
                         with gr.Row():
+                            jersey_number_input = gr.Textbox(label="🎽 Jersey Number to Filter For (optional)")
+                            jersey_filter_button = gr.Button(
+                                "🎽 Filter Results to This Player (checks frames via OCR - not always accurate)")
+                        with gr.Row():
                             llm_clip_button = gr.Button("🧠 AI Clip", variant="primary")
                             llm_clip_subti_button = gr.Button("🧠 AI Clip+Subtitles")
                 with gr.Tab("✂️ Text/Speaker Clipping"):
@@ -408,6 +423,9 @@ if __name__ == "__main__":
         learning_button.click(learning_moments_detect,
                          inputs=[video_input, highlight_count],
                          outputs=[llm_result, video_state])
+        jersey_filter_button.click(jersey_filter,
+                         inputs=[video_input, llm_result, jersey_number_input],
+                         outputs=[llm_result])
         llm_clip_button.click(AI_clip, 
                            inputs=[llm_result,
                                    video_text_input, 
